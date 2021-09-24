@@ -3,6 +3,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <sys/socket.h>
 
 using namespace std;
 
@@ -16,9 +17,20 @@ void get_URL(const string &host, const string &path) {
     // Then you'll need to print out everything the server sends back,
     // (not just one call to read() -- everything) until you reach
     // the "eof" (end of file).
-
-    cerr << "Function called: get_URL(" << host << ", " << path << ").\n";
-    cerr << "Warning: get_URL() has not been implemented yet.\n";
+    string service("http");
+    Address addr(host, service);
+    TCPSocket socket;
+    socket.connect(addr);
+    string request = "GET " + path + " HTTP/1.1\r\nHost: "+ host + "\r\nConnection: close\r\n\r\n";
+    cout << request << endl;
+    size_t data_len = socket.write(request);
+    cout << data_len << endl;
+    string response;
+    for(socket.read(response); !response.empty(); socket.read(response)) {
+        cout << response;
+    }
+    //cerr << "Function called: get_URL(" << host << ", " << path << ").\n";
+    //cerr << "Warning: get_URL() has not been implemented yet.\n";
 }
 
 int main(int argc, char *argv[]) {
