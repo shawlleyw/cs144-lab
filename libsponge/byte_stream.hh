@@ -1,12 +1,7 @@
 #ifndef SPONGE_LIBSPONGE_BYTE_STREAM_HH
 #define SPONGE_LIBSPONGE_BYTE_STREAM_HH
 
-#include <cstddef>
-#include <cstdint>
-#include <deque>
-#include <list>
 #include <string>
-#include <utility>
 
 //! \brief An in-order byte stream.
 
@@ -17,7 +12,17 @@ class ByteStream {
   private:
     // Your code here -- add private members as necessary.
 
+    // Hint: This doesn't need to be a sophisticated data structure at
+    // all, but if any of your tests are taking longer than a second,
+    // that's a sign that you probably want to keep exploring
+    // different approaches.
+    std::string _buffer{};
+    size_t _hold{};
+    size_t _capacity{};
+    size_t _total_read{};
+    size_t _total_write{};
     bool _error{};  //!< Flag indicating that the stream suffered an error.
+    bool _eof{};
 
   public:
     //! Construct a stream with room for `capacity` bytes.
@@ -52,12 +57,8 @@ class ByteStream {
     void pop_output(const size_t len);
 
     //! Read (i.e., copy and then pop) the next "len" bytes of the stream
-    //! \returns a vector of bytes read
-    std::string read(const size_t len) {
-        const auto ret = peek_output(len);
-        pop_output(len);
-        return ret;
-    }
+    //! \returns a string
+    std::string read(const size_t len);
 
     //! \returns `true` if the stream input has ended
     bool input_ended() const;
