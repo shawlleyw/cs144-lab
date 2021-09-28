@@ -1,4 +1,6 @@
 #include "wrapping_integers.hh"
+#include <bits/stdint-uintn.h>
+#include <iostream>
 
 // Dummy implementation of a 32-bit wrapping integer
 
@@ -15,7 +17,8 @@ using namespace std;
 //! \param isn The initial sequence number
 WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
     DUMMY_CODE(n, isn);
-    return WrappingInt32{0};
+    uint32_t ret = n - ((n>>32)<<32);
+    return WrappingInt32(ret+isn.raw_value());
 }
 
 //! Transform a WrappingInt32 into an "absolute" 64-bit sequence number (zero-indexed)
@@ -30,5 +33,17 @@ WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
 //! has a different ISN.
 uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
     DUMMY_CODE(n, isn, checkpoint);
-    return {};
+    WrappingInt32 prev = wrap(checkpoint, isn);
+    uint64_t ret{0};
+    const uint32_t &vn = n.raw_value(), &vprev = prev.raw_value();
+    uint32_t d1 = vn-vprev, d2 = vprev-vn;
+    if(d2 > checkpoint) {
+        ret = checkpoint + d1;
+    } else if(vn > vprev ) {
+        ret = d1<d2 ? checkpoint+d1 : checkpoint-d2;   
+        cout << "-(vprev - vn)" << -(vprev - vn) << endl;
+    } else {
+        ret = d2<d1 ? checkpoint-d2 : checkpoint+d1; 
+    }
+    return ret;
 }
