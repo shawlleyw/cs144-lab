@@ -5,7 +5,9 @@
 #include "wrapping_integers.hh"
 
 #include <cstdint>
+#include <algorithm>
 #include <random>
+#include <tuple>
 
 // Dummy implementation of a TCP sender
 
@@ -27,7 +29,22 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
 
 uint64_t TCPSender::bytes_in_flight() const { return {}; }
 
-void TCPSender::fill_window() {}
+void TCPSender::fill_window() {
+    while(!_stream.buffer_empty() && _window_end > _next_seqno) {
+        if(!_timer_set) {
+            _timer_set = true;
+            _timer_start = _time_miliseconds;
+        }
+        TCPSegment segment{};
+        size_t data_length = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_end-_next_seqno);
+        Buffer buffer(_stream.read(data_length));
+        segment.payload() = buffer;
+        segment.header().seqno = wrap(_next_seqno, _isn);
+        _retransmission_queue.push(segment, _next_seqno);
+        _next_seqno += segment.length_in_sequence_space();
+        _segments_out.push(segment);
+    }
+}
 
 //! \param ackno The remote receiver's ackno (acknowledgment number)
 //! \param window_size The remote receiver's advertised window size
@@ -38,10 +55,15 @@ bool TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     _consecutive_retransmissions = {};
     uint64_t ack = unwrap(ackno, _isn, _checkpoint);
     _checkpoint = ack;
+    _window_start = ack;
+    _window_end = ack + window_size;
     _retransmission_queue.pop(ack);
     //! reset the retransmission timer
     if (!_retransmission_queue.empty()){
+        _timer_set = true;
         _timer_start = _time_miliseconds;
+    } else {
+        _timer_set = false;
     }
     return {};
 }
@@ -50,12 +72,13 @@ bool TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 void TCPSender::tick(const size_t ms_since_last_tick) { 
     DUMMY_CODE(ms_since_last_tick); 
     _time_miliseconds += ms_since_last_tick;
-    if (_time_miliseconds - _timer_start > _retransmission_timeout) {
+    if (_timer_set && _time_miliseconds - _timer_start > _retransmission_timeout) {
         //! resend
-        {
+        TCPSegment segment{};
+        std::tie(segment, std::ignore) = _retransmission_queue.front();
+        _segments_out.push(segment);
 
-        }
-        if (/*! If the window size is nonzero*/true) {
+        if (_window_end > _window_start) {
             _consecutive_retransmissions ++;
             _retransmission_timeout <<= 1;
         }
@@ -72,7 +95,11 @@ unsigned int TCPSender::consecutive_retransmissions() const {
     return _consecutive_retransmissions; 
 }
 
-void TCPSender::send_empty_segment() {}
+void TCPSender::send_empty_segment() {
+    TCPSegment segment{};
+    segment.header().seqno = wrap(_next_seqno, _isn);
+    _segments_out.push(segment);
+}
 
 bool RetransmissionQueue::empty() {
     return _segments_queue.empty();

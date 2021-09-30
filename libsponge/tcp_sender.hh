@@ -52,6 +52,12 @@ class TCPSender {
     //! checkpoint for ackno
     uint64_t _checkpoint{};
 
+    //! the left side of the window 
+    uint64_t _window_start{};
+
+    //! the right side of the window
+    uint64_t _window_end{1};
+
     //! current time, accumulated by method tick
     size_t _time_miliseconds{};
 
