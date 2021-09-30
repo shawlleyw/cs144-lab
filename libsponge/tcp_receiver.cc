@@ -28,18 +28,8 @@ bool TCPReceiver::segment_received(const TCPSegment &seg) {
     uint64_t index = seq - _offset;
     bool ret = index < _capacity + _reassembler.stream_out().bytes_read() 
                && index + seg.length_in_sequence_space() >= _checkpoint;
-    int added{};
-    if(seg.header().syn) {
-        _offset ++;
-        added ++;
-    }
-    if(seg.header().fin) {
-        _offset ++;
-        added ++;
-    }
-    if(seg.payload().copy().empty()&&!added) {
-        _offset ++;
-    } 
+    _offset += seg.header().syn;
+    _offset += seg.header().fin;
     _reassembler.push_substring(data, index, seg.header().fin);
     _checkpoint = _reassembler.stream_out().bytes_written()+_offset;
     return ret;

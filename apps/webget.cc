@@ -23,8 +23,8 @@ void get_URL(const string &host, const string &path) {
     socket.connect(addr);
     string request = "GET " + path + " HTTP/1.1\r\nHost: "+ host + "\r\nConnection: close\r\n\r\n";
     //cout << request << endl;
-    //size_t data_len = socket.write(request);
-    //cout << data_len << endl;
+    size_t data_len = socket.write(request);
+    cout << data_len << endl;
     string response;
     for(socket.read(response); !response.empty(); socket.read(response)) {
         cout << response;

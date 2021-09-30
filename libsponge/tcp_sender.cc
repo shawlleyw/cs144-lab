@@ -1,7 +1,10 @@
 #include "tcp_sender.hh"
 
 #include "tcp_config.hh"
+#include "tcp_segment.hh"
+#include "wrapping_integers.hh"
 
+#include <cstdint>
 #include <random>
 
 // Dummy implementation of a TCP sender
@@ -31,12 +34,76 @@ void TCPSender::fill_window() {}
 //! \returns `false` if the ackno appears invalid (acknowledges something the TCPSender hasn't sent yet)
 bool TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
     DUMMY_CODE(ackno, window_size);
+    _retransmission_timeout = _initial_retransmission_timeout;
+    _consecutive_retransmissions = {};
+    uint64_t ack = unwrap(ackno, _isn, _checkpoint);
+    _checkpoint = ack;
+    _retransmission_queue.pop(ack);
+    //! reset the retransmission timer
+    if (!_retransmission_queue.empty()){
+        _timer_start = _time_miliseconds;
+    }
     return {};
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
-void TCPSender::tick(const size_t ms_since_last_tick) { DUMMY_CODE(ms_since_last_tick); }
+void TCPSender::tick(const size_t ms_since_last_tick) { 
+    DUMMY_CODE(ms_since_last_tick); 
+    _time_miliseconds += ms_since_last_tick;
+    if (_time_miliseconds - _timer_start > _retransmission_timeout) {
+        //! resend
+        {
 
-unsigned int TCPSender::consecutive_retransmissions() const { return {}; }
+        }
+        if (/*! If the window size is nonzero*/true) {
+            _consecutive_retransmissions ++;
+            _retransmission_timeout <<= 1;
+        }
+        
+        //! start the retransmission timer
+        {
+            _timer_set = true;
+            _timer_start = _time_miliseconds;
+        }
+    }
+}
+
+unsigned int TCPSender::consecutive_retransmissions() const { 
+    return _consecutive_retransmissions; 
+}
 
 void TCPSender::send_empty_segment() {}
+
+bool RetransmissionQueue::empty() {
+    return _segments_queue.empty();
+}
+
+void RetransmissionQueue::reset() {
+    while(!_segments_queue.empty()) {
+        _segments_queue.pop();
+        _seqno_queue.pop();
+    }
+}
+
+void RetransmissionQueue::pop(uint64_t ackno) {
+    while(!_segments_queue.empty()) {
+        TCPSegment head_seg = _segments_queue.front();
+        uint64_t seqno = _seqno_queue.front();
+        if(ackno >= seqno + head_seg.length_in_sequence_space()) {
+            break;
+        }
+        _segments_queue.pop();
+        _seqno_queue.pop();
+    }
+}
+
+void RetransmissionQueue::push(TCPSegment segment, uint64_t seqno) {
+    _segments_queue.push(segment);
+    _seqno_queue.push(seqno);
+}
+
+std::tuple<TCPSegment, uint64_t> RetransmissionQueue::front() {
+    TCPSegment segment_ret = _segments_queue.front();
+    uint64_t seqno = _seqno_queue.front();
+    return std::tie(segment_ret, seqno);
+}

@@ -6,10 +6,27 @@
 #include "tcp_segment.hh"
 #include "wrapping_integers.hh"
 
+#include <cstddef>
 #include <functional>
 #include <queue>
+#include <tuple>
 
 //! \brief The "sender" part of a TCP implementation.
+
+//! Maintains the outstanding segments.
+class RetransmissionQueue {
+  private:
+    std::queue<TCPSegment>_segments_queue{};
+    std::queue<uint64_t>_seqno_queue{};
+  public:
+    RetransmissionQueue() = default;
+    ~RetransmissionQueue() = default;
+    void push(TCPSegment segment, uint64_t seqno);
+    std::tuple<TCPSegment, uint64_t> front();
+    void pop(uint64_t ackno);
+    void reset();
+    bool empty();
+};
 
 //! Accepts a ByteStream, divides it up into segments and sends the
 //! segments, keeps track of which segments are still in-flight,
@@ -31,6 +48,27 @@ class TCPSender {
 
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
+
+    //! checkpoint for ackno
+    uint64_t _checkpoint{};
+
+    //! current time, accumulated by method tick
+    size_t _time_miliseconds{};
+
+    //! consecutive retransmissions by now
+    unsigned int _consecutive_retransmissions{};
+
+    //! RTO by now 
+    unsigned int _retransmission_timeout{};
+    
+    //! whether the retransmission timer is set
+    bool _timer_set{};
+
+    //! the start time of the retransmission timer
+    size_t _timer_start{};
+
+    //! retransmission queue that maintains the outstanding segments
+    RetransmissionQueue _retransmission_queue{};
 
   public:
     //! Initialize a TCPSender
@@ -88,5 +126,6 @@ class TCPSender {
     WrappingInt32 next_seqno() const { return wrap(_next_seqno, _isn); }
     //!@}
 };
+
 
 #endif  // SPONGE_LIBSPONGE_TCP_SENDER_HH
