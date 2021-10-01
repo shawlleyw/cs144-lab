@@ -59,8 +59,8 @@ std::string ByteStream::read(const size_t len) {
     DUMMY_CODE(len);
     string ret = this->_buffer.substr(0, len);
     this->_buffer.erase(0, len);
-    this->_total_read += len;
-    this->_hold -= len;
+    this->_total_read += ret.length();
+    this->_hold -= ret.length();
     return ret;
 }
 

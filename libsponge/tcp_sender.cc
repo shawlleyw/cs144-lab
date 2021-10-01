@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <random>
 #include <tuple>
+#include <iostream>
 
 // Dummy implementation of a TCP sender
 
@@ -25,24 +26,47 @@ using namespace std;
 TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const std::optional<WrappingInt32> fixed_isn)
     : _isn(fixed_isn.value_or(WrappingInt32{random_device()()}))
     , _initial_retransmission_timeout{retx_timeout}
-    , _stream(capacity) {}
+    , _stream(capacity)
+    , _retransmission_timeout(retx_timeout) {}
 
-uint64_t TCPSender::bytes_in_flight() const { return {}; }
+uint64_t TCPSender::bytes_in_flight() const { 
+    return _next_seqno - _checkpoint; 
+}
 
 void TCPSender::fill_window() {
-    while(!_stream.buffer_empty() && _window_end > _next_seqno) {
-        if(!_timer_set) {
-            _timer_set = true;
-            _timer_start = _time_miliseconds;
-        }
+    bool segment_sent{};
+    if(!_syn_sent) {
+        _syn_sent = true;
+        TCPSegment segment{};
+        segment.header().syn = true;
+        segment.header().seqno = wrap(_next_seqno, _isn);
+        _retransmission_queue.push(segment, _next_seqno);
+        _next_seqno ++;
+        _segments_out.push(segment);
+        segment_sent = true;
+    }
+    while(!_fin_sent && _window_end > _next_seqno) {
         TCPSegment segment{};
         size_t data_length = min(TCPConfig::MAX_PAYLOAD_SIZE, _window_end-_next_seqno);
         Buffer buffer(_stream.read(data_length));
         segment.payload() = buffer;
+        if(_window_end - _next_seqno > segment.length_in_sequence_space() && _stream.eof()) {
+            segment.header().fin = true;
+            _fin_sent = true;
+        }
+        //cerr << "here the buffer: " << buffer.str() << " | here the fin: " << segment.header().fin << endl;
+        if(segment.length_in_sequence_space() == 0) {
+            break;
+        }
         segment.header().seqno = wrap(_next_seqno, _isn);
         _retransmission_queue.push(segment, _next_seqno);
         _next_seqno += segment.length_in_sequence_space();
         _segments_out.push(segment);
+        segment_sent = true;
+    }
+    if(!_timer_set && segment_sent) {
+        _timer_set = true;
+        _timer_start = _time_miliseconds;
     }
 }
 
@@ -65,14 +89,14 @@ bool TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     } else {
         _timer_set = false;
     }
-    return {};
+    return ack <= _next_seqno;
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) { 
     DUMMY_CODE(ms_since_last_tick); 
     _time_miliseconds += ms_since_last_tick;
-    if (_timer_set && _time_miliseconds - _timer_start > _retransmission_timeout) {
+    if (_timer_set && _time_miliseconds - _timer_start >= _retransmission_timeout) {
         //! resend
         TCPSegment segment{};
         std::tie(segment, std::ignore) = _retransmission_queue.front();
@@ -82,12 +106,10 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
             _consecutive_retransmissions ++;
             _retransmission_timeout <<= 1;
         }
+
+        _timer_set = true;
+        _timer_start = _time_miliseconds;
         
-        //! start the retransmission timer
-        {
-            _timer_set = true;
-            _timer_start = _time_miliseconds;
-        }
     }
 }
 
@@ -97,6 +119,7 @@ unsigned int TCPSender::consecutive_retransmissions() const {
 
 void TCPSender::send_empty_segment() {
     TCPSegment segment{};
+    //cerr << "here send an empty one" << endl;
     segment.header().seqno = wrap(_next_seqno, _isn);
     _segments_out.push(segment);
 }
@@ -116,7 +139,7 @@ void RetransmissionQueue::pop(uint64_t ackno) {
     while(!_segments_queue.empty()) {
         TCPSegment head_seg = _segments_queue.front();
         uint64_t seqno = _seqno_queue.front();
-        if(ackno >= seqno + head_seg.length_in_sequence_space()) {
+        if(ackno < seqno + head_seg.length_in_sequence_space()) {
             break;
         }
         _segments_queue.pop();

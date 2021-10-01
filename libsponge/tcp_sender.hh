@@ -49,6 +49,12 @@ class TCPSender {
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
 
+    //! denotes if syn has been sent
+    bool _syn_sent{};
+
+    //! denotes if fin has been sent
+    bool _fin_sent{};
+
     //! checkpoint for ackno
     uint64_t _checkpoint{};
 
@@ -65,7 +71,7 @@ class TCPSender {
     unsigned int _consecutive_retransmissions{};
 
     //! RTO by now 
-    unsigned int _retransmission_timeout{};
+    unsigned int _retransmission_timeout;
     
     //! whether the retransmission timer is set
     bool _timer_set{};
