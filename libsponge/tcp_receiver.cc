@@ -21,13 +21,13 @@ bool TCPReceiver::segment_received(const TCPSegment &seg) {
     if(seg.header().syn && ! _set_syn) {
         _set_syn = true;
         _isn = seg.header().seqno;
-    }// many syn ??
+    }
     
     string data = seg.payload().copy();
     uint64_t seq = unwrap(seg.header().seqno, _isn, _checkpoint);
     uint64_t index = seq - _offset;
     bool ret = index < _capacity + _reassembler.stream_out().bytes_read() 
-               && index + seg.length_in_sequence_space() >= _checkpoint;
+               && index + seg.length_in_sequence_space() > _reassembler.stream_out().bytes_written();
     _offset += seg.header().syn;
     _offset += seg.header().fin;
     _reassembler.push_substring(data, index, seg.header().fin);
