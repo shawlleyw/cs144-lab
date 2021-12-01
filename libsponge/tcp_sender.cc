@@ -76,11 +76,17 @@ void TCPSender::fill_window() {
 bool TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
     DUMMY_CODE(ackno, window_size);
     _retransmission_timeout = _initial_retransmission_timeout;
-    _consecutive_retransmissions = {};
+    _consecutive_retransmissions = 0;
     uint64_t ack = unwrap(ackno, _isn, _checkpoint);
-    _checkpoint = ack;
-    _window_start = ack;
-    _window_end = ack + window_size;
+    if(ack > _next_seqno) {
+        return false;
+    }
+    
+    if(ack > _checkpoint) {
+        _checkpoint = ack;
+    }
+    _window_start = _checkpoint;
+    _window_end = _checkpoint + window_size;
     _retransmission_queue.pop(ack);
     //! reset the retransmission timer
     if (!_retransmission_queue.empty()){
@@ -89,7 +95,7 @@ bool TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     } else {
         _timer_set = false;
     }
-    return ack <= _next_seqno;
+    return true;
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
