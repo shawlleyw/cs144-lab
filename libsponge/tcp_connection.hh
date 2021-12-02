@@ -21,6 +21,34 @@ class TCPConnection {
     //! in case the remote TCPConnection doesn't know we've received its whole stream?
     bool _linger_after_streams_finish{true};
 
+    size_t _last_recieved{};
+
+    size_t _time_cur{};
+
+    bool _end_receiver{};
+
+    bool _end_sender{};
+
+    bool _receiver_fin_received{};
+
+    bool _sender_fin_sent{};
+
+    bool _connection_alive{true};
+
+    bool _rst_flag{};
+
+    void unclean_shutdown(bool send_rst);
+
+    void pack_outbound_segment(TCPSegment &outbound_seg, bool send_rst);
+
+    void send_empty_ack();
+
+    void send_to_outbound(bool send_syn, bool send_rst = false);
+
+    bool in_syn_sent();
+
+    int recv_times{};
+
   public:
     //! \name "Input" interface for the writer
     //!@{

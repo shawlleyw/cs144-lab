@@ -26,8 +26,13 @@ bool TCPReceiver::segment_received(const TCPSegment &seg) {
     string data = seg.payload().copy();
     uint64_t seq = unwrap(seg.header().seqno, _isn, _checkpoint);
     uint64_t index = seq - _offset;
+    size_t length = seg.length_in_sequence_space();
+    // accept an empty segment (consider its length as 1)
+    if(length == 0) {
+        length = 1;
+    }
     bool ret = index < _capacity + _reassembler.stream_out().bytes_read() 
-               && index + seg.length_in_sequence_space() > _reassembler.stream_out().bytes_written();
+               && index + length > _reassembler.stream_out().bytes_written();
     if(!ret) {
         return false;
     }

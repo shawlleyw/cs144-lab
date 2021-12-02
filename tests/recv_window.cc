@@ -109,7 +109,7 @@ int main() {
             test.execute(SegmentArrives{}.with_data("ab").with_seqno(isn + 1).with_result(SegmentArrives::Result::OK));
             test.execute(ExpectTotalAssembledBytes{2});
             test.execute(ExpectWindow{cap - 2});
-            test.execute(SegmentArrives{}.with_data("abc").with_seqno(isn + 1).with_result(SegmentArrives::Result::OK));
+             test.execute(SegmentArrives{}.with_data("abc").with_seqno(isn + 1).with_result(SegmentArrives::Result::OK));
             test.execute(ExpectTotalAssembledBytes{3});
             test.execute(ExpectWindow{cap - 3});
         }
