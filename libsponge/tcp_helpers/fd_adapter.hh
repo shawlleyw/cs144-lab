@@ -8,6 +8,7 @@
 #include "tcp_header.hh"
 #include "tcp_segment.hh"
 
+#include <iostream>
 #include <optional>
 #include <utility>
 
@@ -24,7 +25,10 @@ class FdAdapterBase {
   public:
     //! \brief Set the listening flag
     //! \param[in] l is the new value for the flag
-    void set_listening(const bool l) { _listen = l; }
+    void set_listening(const bool l) {
+        std::cerr << "listenning on port: " <<  _cfg.source.ip_port().second << std::endl;
+        _listen = l;
+    }
 
     //! \brief Get the listening flag
     //! \returns whether the FdAdapter is listening for a new connection

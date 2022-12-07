@@ -71,23 +71,23 @@ void TCPSpongeSocket<AdaptT>::_initialize_TCP(const TCPConfig &config) {
     //    given to underlying datagram socket)
 
     // rule 1: read from filtered packet stream and dump into TCPConnection
-    _eventloop.add_rule(_datagram_adapter,
-                        Direction::In,
-                        [&] {
-                            auto seg = _datagram_adapter.read();
-                            if (seg) {
-                                _tcp->segment_received(move(seg.value()));
-                            }
+    _eventloop.add_rule(
+        _datagram_adapter,
+        Direction::In,
+        [&] {
+            auto seg = _datagram_adapter.read();
+            if (seg) {
+                _tcp->segment_received(move(seg.value()));
+            }
 
-                            // debugging output:
-                            if (_thread_data.eof() and _tcp.value().bytes_in_flight() == 0 and not _fully_acked) {
-                                cerr << "DEBUG: Outbound stream to "
-                                     << _datagram_adapter.config().destination.to_string()
-                                     << " has been fully acknowledged.\n";
-                                _fully_acked = true;
-                            }
-                        },
-                        [&] { return _tcp->active(); });
+            // debugging output:
+            if (_thread_data.eof() and _tcp.value().bytes_in_flight() == 0 and not _fully_acked) {
+                cerr << "DEBUG: Outbound stream to " << _datagram_adapter.config().destination.to_string()
+                     << " has been fully acknowledged.\n";
+                _fully_acked = true;
+            }
+        },
+        [&] { return _tcp->active(); });
 
     // rule 2: read from pipe into outbound buffer
     _eventloop.add_rule(
@@ -149,15 +149,16 @@ void TCPSpongeSocket<AdaptT>::_initialize_TCP(const TCPConfig &config) {
         });
 
     // rule 4: read outbound segments from TCPConnection and send as datagrams
-    _eventloop.add_rule(_datagram_adapter,
-                        Direction::Out,
-                        [&] {
-                            while (not _tcp->segments_out().empty()) {
-                                _datagram_adapter.write(_tcp->segments_out().front());
-                                _tcp->segments_out().pop();
-                            }
-                        },
-                        [&] { return not _tcp->segments_out().empty(); });
+    _eventloop.add_rule(
+        _datagram_adapter,
+        Direction::Out,
+        [&] {
+            while (not _tcp->segments_out().empty()) {
+                _datagram_adapter.write(_tcp->segments_out().front());
+                _tcp->segments_out().pop();
+            }
+        },
+        [&] { return not _tcp->segments_out().empty(); });
 }
 
 //! \brief Call [socketpair](\ref man2::socketpair) and return connected Unix-domain sockets of specified type
@@ -194,7 +195,7 @@ void TCPSpongeSocket<AdaptT>::wait_until_closed() {
     if (_tcp_thread.joinable()) {
         cerr << "DEBUG: Waiting for clean shutdown... ";
         _tcp_thread.join();
-        cerr << "done.\n";
+        cerr << _datagram_adapter.config_mut().destination.to_string() + string(" done") << endl;
     }
 }
 
@@ -221,7 +222,7 @@ void TCPSpongeSocket<AdaptT>::connect(const TCPConfig &c_tcp, const FdAdapterCon
     }
 
     _tcp_loop([&] { return _tcp->state() == TCPState::State::SYN_SENT; });
-    cerr << "done.\n";
+    // cerr << c_ad.destination.to_string() + string(" connection done") << endl;
 
     _tcp_thread = thread(&TCPSpongeSocket::_tcp_main, this);
 }
@@ -239,7 +240,7 @@ void TCPSpongeSocket<AdaptT>::listen_and_accept(const TCPConfig &c_tcp, const Fd
     _datagram_adapter.config_mut() = c_ad;
     _datagram_adapter.set_listening(true);
 
-    cerr << "DEBUG: Listening for incoming connection... ";
+    cerr << "DEBUG: Listening for incoming connection on" << endl;
     _tcp_loop([&] {
         const auto s = _tcp->state();
         return (s == TCPState::State::LISTEN or s == TCPState::State::SYN_RCVD or s == TCPState::State::SYN_SENT);
